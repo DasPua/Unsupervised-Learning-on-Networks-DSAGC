@@ -12,6 +12,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
+import csv
 
 
 def trainer(dataset):
@@ -64,7 +65,7 @@ def trainer(dataset):
 
     y_new = [int(y[i]) for i in realiable_sample]
     y_pred_new = [int(y_pred[i]) for i in realiable_sample]
-    eva(y_new, y_pred_new, "pretrain-可信赖样本", show=True)
+    eva(y_new, y_pred_new, "pretrain-ss", show=True)
     print(Counter(y_pred_new))
     print(Counter(y))
 
@@ -74,6 +75,25 @@ def trainer(dataset):
 
 
 def train_self_supervised(x, y, adj, y_pred, sample_index, epoch=200):
+
+    os.makedirs("logs", exist_ok=True)
+    log_path = f"logs/Trainer_{args.name}.csv"
+
+    with open(log_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(
+            [
+                "epoch",
+                "train_acc",
+                "train_nmi",
+                "train_ari",
+                "train_f1",
+                "test_acc",
+                "test_nmi",
+                "test_ari",
+                "test_f1",
+            ]
+        )
     sample_index = [i[0] for i in sample_index]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     x, adj, y_pred = x.to(device), adj.to(device), torch.LongTensor(y_pred).to(device)
@@ -86,7 +106,6 @@ def train_self_supervised(x, y, adj, y_pred, sample_index, epoch=200):
         number_of_heads=8,
         alpha=0.2,
     )
-    # print(model)
     model = model.to(device)
     optimizer = optim.Adam(model.parameters(), lr=0.005, weight_decay=5e-5)
     acc_best = 0
@@ -100,20 +119,36 @@ def train_self_supervised(x, y, adj, y_pred, sample_index, epoch=200):
 
         y_pre_GAT = np.argmax(output.cpu().detach().numpy(), axis=1)
         y_pre_kmeans = y_pred.cpu().detach().numpy()
-
         acc_train, nmi_train, ari_train, f1_train = eva(
             y_pre_GAT[sample_index], y_pre_kmeans[sample_index], "{}".format(i)
         )
         acc_test, nmi_test, ari_test, f1_test = eva(y_pre_GAT, y, "Test: {}".format(i))
+        with open(log_path, "a", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(
+                [
+                    i,
+                    acc_train,
+                    nmi_train,
+                    ari_train,
+                    f1_train,
+                    acc_test,
+                    nmi_test,
+                    ari_test,
+                    f1_test,
+                ]
+            )
+
         print(
             f"epoch - Train {i}:acc {acc_train:.4f}, nmi {nmi_train:.4f}, ari {ari_train:.4f}, f1 {f1_train:.4f}"
         )
         if acc_test > acc_best:
             print("the model outperformed the previous score : ")
             acc_best = acc_test
-            torch.save(
-                model.state_dict(), f"pretrain/self_GCN_{args.name}_{i}_{acc_best}.pkl"
-            )
+            torch.save(model.state_dict(), f"pretrain/self_GCN_{args.name}.pkl")
+            best_output = output
+            torch.save(best_output, "logs/best_output.pt")
+            torch.save(y_pred, "logs/y_pred.pt")
             print(
                 f"epoch - Train {i}:acc {acc_train:.4f}, nmi {nmi_train:.4f}, ari {ari_train:.4f}, f1 {f1_train:.4f}"
             )
@@ -161,7 +196,7 @@ if __name__ == "__main__":
     else:
         args.k = None
     file_name = os.listdir("./pretrain")[0]
-    args.pretrain_path = f"pretrain/{file_name}"
+    args.pretrain_path = f"pretrain/GAE_{args.name}.pkl"
     args.input_dim = dataset.num_features
 
     print(args)

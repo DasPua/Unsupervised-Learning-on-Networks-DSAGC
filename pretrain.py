@@ -7,6 +7,8 @@ import torch.nn.functional as F
 from torch.optim import Adam
 from sklearn.cluster import KMeans
 import os
+import csv
+
 
 
 def pretrain(dataset):
@@ -27,6 +29,13 @@ def pretrain(dataset):
     x = torch.Tensor(dataset.x).to(device)
     y = dataset.y.cpu().numpy()
     result = [0, 0, 0, 0]
+
+    os.makedirs("logs", exist_ok=True)
+    log_path = f"logs/GAE_{args.name}.csv"
+
+    with open(log_path, "w") as f:
+        writer = csv.writer(f)
+        writer.writerow(["epoch", "acc", "nmi", "ari", "f1"])
     for epoch in range(args.max_epoch):
         model.train()
         A_pred, z = model(x, adj, M)
@@ -41,13 +50,17 @@ def pretrain(dataset):
                 z.data.cpu().numpy()
             )
             acc, nmi, ari, f1 = eva(y, kmeans.labels_, epoch)
+
+            with open(log_path, "a", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow([epoch, acc, nmi, ari, f1])
             print(
                 f"epoch {epoch}:acc {acc:.4f}, nmi {nmi:.4f}, ari {ari:.4f}, f1 {f1:.4f}"
             )
             if result[0] < acc:
                 torch.save(
                     model.state_dict(),
-                    f"pretrain/predaegc_{args.name}_{epoch}_{acc}.pkl",
+                    f"pretrain/GAE_{args.name}.pkl",
                 )
                 result = [acc, nmi, ari, f1]
 
