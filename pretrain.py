@@ -10,7 +10,6 @@ import os
 import csv
 
 
-
 def pretrain(dataset):
     model = GAE(
         num_features=args.input_dim,
@@ -75,7 +74,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="train", formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument("--name", type=str, default="Cora")  # Citeseer,  Cora, Pubmed
+    parser.add_argument(
+        "--name", type=str, default="Citeseer"
+    )  # Citeseer,  Cora, Pubmed
     parser.add_argument("--max_epoch", type=int, default=100)
     parser.add_argument("--lr", type=float, default=0.001)
     parser.add_argument("--n_clusters", default=6, type=int)
